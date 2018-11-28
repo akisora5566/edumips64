@@ -119,6 +119,8 @@ java_library(
         "MainCLI.java",
     ],
     deps = [
+        "//src/main/java/org/edumips64/core:BranchPredictor",
+        #"//src/main/java/org/edumips64/core:Prediction",
         "//src/main/java/org/edumips64/core:cpu",
         "//src/main/java/org/edumips64/core:dinero",
         "//src/main/java/org/edumips64/core:iomanager",
@@ -146,6 +148,8 @@ java_library(
         "MainCLI.java",
     ],
     deps = [
+        "//src/main/java/org/edumips64/core:BranchPredictor",
+        #"//src/main/java/org/edumips64/core:Prediction",
         "//src/main/java/org/edumips64/core:cpu",
         "//src/main/java/org/edumips64/core:dinero",
         "//src/main/java/org/edumips64/core:iomanager",
