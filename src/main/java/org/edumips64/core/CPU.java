@@ -53,6 +53,11 @@ public class CPU {
   /** Branch Predictor*/
   private BranchPredictor predictor;
 
+  /** Cache related**/
+  private Cache inst_cache; // instruction cache for IF stages
+  private Cache data_cache; // data cache for MEM stages
+  private int if_remaining_stalls, if_time_visited;
+
   /** CPU status.
    *  READY - the CPU has been initialized but the symbol table hasn't been
    *  already filled by the Parser. This means that you can't call the step()
@@ -85,7 +90,7 @@ public class CPU {
   /** Statistics */
   private int cycles, instructions, RAWStalls, WAWStalls, dividerStalls, funcUnitStalls, memoryStalls, exStalls;
   private int flushing_stalls, untaken_stalls, taken_stalls, misprediction_stalls;
-
+  private int mem_readmiss_stalls, inst_readmiss_stalls, readmiss_stalls, writemiss_stalls;
 
   /** BUBBLE */
   private InstructionInterface bubble;
@@ -129,6 +134,12 @@ public class CPU {
     //Branch Predictor
     predictor = new BranchPredictor();
     ConfigBranchPredictionMode();
+
+    //Cache related
+    inst_cache = new Cache();
+    data_cache = new Cache();
+    if_remaining_stalls = 0;
+    if_time_visited = 0;
 
     //Floating point registers initialization
     fpr = new RegisterFP[32];
@@ -352,6 +363,14 @@ public class CPU {
     return memoryStalls;
   }
 
+  /** Returns the number of memory related stalls
+   * @return an integer
+   */
+  public int getMEMReadMissStalls() {return mem_readmiss_stalls;}
+  public int getINSTReadMissStalls() {return inst_readmiss_stalls;}
+  public int getReadMissStalls() {return readmiss_stalls;}
+  public int getWriteMissStalls() {return writemiss_stalls;}
+
   /** Returns the number of Structural Stalls (EX not available) that happened inside the pipeline
    * @return an integer
    */
@@ -372,6 +391,12 @@ public class CPU {
   public boolean getFPExceptions(FCSRRegister.FPExceptions exceptionName) {
     return FCSR.getFPExceptions(exceptionName);
   }
+
+  /** Gets the caches
+   *  @return a Cache object
+   */
+  public Cache getInstCache() { return inst_cache; }
+  public Cache getDataCache() { return data_cache; }
 
   /** Gets the Program Counter register
    *  @return a Register object
@@ -463,6 +488,28 @@ public class CPU {
       if (syncex.isPresent()) {
         throw new SynchronousException(syncex.get());
       }
+    } catch (InstReadMissException ex) {
+      /**
+       Thrown by stepIF(), Inst Read Miss Stall
+       **/
+      logger.info("Now encounter a Inst Read Miss Stall");
+      if (currentPipeStage == Pipeline.Stage.IF) {
+        pipe.setID(bubble);
+      }
+      inst_readmiss_stalls++;
+      readmiss_stalls++;
+
+    } catch (MEMReadMissException ex) {
+      /**
+       Thrown by stepMEM(), MEM Read Miss Stall
+       **/
+      logger.info("Now encounter a MEM Read Miss Stall");
+      if (currentPipeStage == Pipeline.Stage.ID) {
+        pipe.setEX(bubble);
+      }
+      mem_readmiss_stalls++;
+      readmiss_stalls++;
+
     } catch (JumpException ex) {
       logger.info("Executing a Jump.");
       try {
@@ -650,12 +697,17 @@ public class CPU {
     }
   }
 
-  private void stepMEM() throws NotAlignException, IrregularWriteOperationException, MemoryElementNotFoundException, AddressErrorException, IrregularStringOfBitsException {
+  private void stepMEM() throws MEMReadMissException, IrregularWriteOperationException, MemoryElementNotFoundException, AddressErrorException, IrregularStringOfBitsException {
     changeStage(Pipeline.Stage.MEM);
 
     if (!pipe.isEmpty(Pipeline.Stage.MEM)) {
       logger.info("Executing MEM() for " + pipe.MEM());
-      pipe.MEM().MEM();
+      try {
+        pipe.MEM().MEM();
+      }
+      catch (NotAlignException ex) {
+        logger.info("NotAlignException caught!!!");
+      }
     }
 
     logger.info("Moving " + pipe.MEM() + " to WB");
@@ -723,7 +775,7 @@ public class CPU {
     return syncex;
   }
 
-  // Returns true if there is a RAW conflict, false otherwis3. See docs for Instruction.ID()
+  // Returns true if there is a RAW conflict, false otherwise. See docs for Instruction.ID()
   // for an explanation of why it is the case.
   private boolean stepID() throws TwosComplementSumException, WAWException, IrregularStringOfBitsException, FPInvalidOperationException, BreakException, IrregularWriteOperationException, JumpException, PredictedJumpException, UntakenBranchException, TakenBranchException, FPDividerNotAvailableException, FPFunctionalUnitNotAvailableException, EXNotAvailableException {
     changeStage(Pipeline.Stage.ID);
@@ -770,36 +822,101 @@ public class CPU {
     return false;
   }
 
-  private void stepIF() throws IrregularStringOfBitsException, IrregularWriteOperationException, BreakException, TwosComplementSumException, PredictedJumpException {
+  private void stepIF() throws InstReadMissException, IrregularStringOfBitsException, IrregularWriteOperationException, BreakException, TwosComplementSumException, PredictedJumpException {
     // We don't have to execute any methods, but we must get the new
     // instruction from the symbol table.
     changeStage(Pipeline.Stage.IF);
 
     logger.info("CPU Status: " + status.name());
+    boolean ifisdone = false;
 
     boolean breaking = false;
     if (status == CPUStatus.RUNNING) {
       if (!pipe.isEmpty(Pipeline.Stage.IF)) {  //rispetto a dinmips scambia le load con le IF
-        try {
-          logger.info("Executing IF() for " + pipe.IF());
-          pipe.IF().IF();
-        } catch (BreakException exc) {
-          breaking = true;
+        int pc_addr_this_inst = (int)old_pc.getValue();
+        logger.info("pc_addr_this_inst = " + pc_addr_this_inst);
+
+        if (if_time_visited == 0){
+          logger.info("inside if_time_visted == 0");
+          boolean this_inst_in_cache = inst_cache.ReadAddress(pc_addr_this_inst);
+          String str_tmp = this_inst_in_cache? "1":"0";
+          logger.info("this_inst_in_cache finished" + str_tmp);
+          if (this_inst_in_cache){
+            logger.info("inside do stepIF normally");
+            // do stepIF() normally
+            try {
+              logger.info("Executing IF() for " + pipe.IF());
+              pipe.IF().IF();
+            } catch (BreakException exc) {
+              breaking = true;
+            }
+            logger.info("Moving " + pipe.IF() + " to ID");
+            pipe.setID(pipe.IF());
+
+            InstructionInterface next_if = mem.getInstruction(pc);
+            logger.info("Fetched new instruction " + next_if);
+
+            old_pc.writeDoubleWord((pc.getValue()));
+            pc.writeDoubleWord((pc.getValue()) + 4);
+            logger.info("New Program Counter value: " + pc.toString());
+            logger.info("Putting " + next_if + "in IF.");
+            pipe.setIF(next_if);
+
+            ifisdone = true;
+          }
+          else {
+            if_remaining_stalls = 3;
+            if_time_visited++;
+            logger.info("inside if_reamin_stall = 3");
+          }
+        } // if (if_time_visited == 0)
+
+        if (!ifisdone) {
+          if (if_remaining_stalls == 0) {
+            //fetch and replace cache
+            inst_cache.FetchDataFromMem(pc_addr_this_inst);
+
+            // finish IF stage, do stepIF() normally
+            try {
+              logger.info("Executing IF() for " + pipe.IF());
+              pipe.IF().IF();
+            } catch (BreakException exc) {
+              breaking = true;
+            }
+            logger.info("Moving " + pipe.IF() + " to ID");
+            pipe.setID(pipe.IF());
+
+            InstructionInterface next_if = mem.getInstruction(pc);
+            logger.info("Fetched new instruction " + next_if);
+
+            old_pc.writeDoubleWord((pc.getValue()));
+            pc.writeDoubleWord((pc.getValue()) + 4);
+            logger.info("New Program Counter value: " + pc.toString());
+            logger.info("Putting " + next_if + "in IF.");
+            pipe.setIF(next_if);
+
+            if_time_visited = 0;
+          } else {
+            if_remaining_stalls--;
+            throw new InstReadMissException();
+          }
         }
       }
+      else {
+        logger.info("Moving " + pipe.IF() + " to ID");
+        pipe.setID(pipe.IF());
 
-      logger.info("Moving " + pipe.IF() + " to ID");
-      pipe.setID(pipe.IF());
+        InstructionInterface next_if = mem.getInstruction(pc);
+        logger.info("Fetched new instruction " + next_if);
 
-      InstructionInterface next_if = mem.getInstruction(pc);
-      logger.info("Fetched new instruction " + next_if);
-
-      old_pc.writeDoubleWord((pc.getValue()));
-      pc.writeDoubleWord((pc.getValue()) + 4);
-      logger.info("New Program Counter value: " + pc.toString());
-      logger.info("Putting " + next_if + "in IF.");
-      pipe.setIF(next_if);
-    } else {
+        old_pc.writeDoubleWord((pc.getValue()));
+        pc.writeDoubleWord((pc.getValue()) + 4);
+        logger.info("New Program Counter value: " + pc.toString());
+        logger.info("Putting " + next_if + "in IF.");
+        pipe.setIF(next_if);
+      }
+    }
+    else {
       pipe.setID(bubble);
     }
 
@@ -829,6 +946,11 @@ public class CPU {
     funcUnitStalls = 0;
     exStalls = 0;
     memoryStalls = 0;
+    mem_readmiss_stalls = 0;
+    inst_readmiss_stalls = 0;
+    readmiss_stalls = 0;
+    if_remaining_stalls = 0;
+    if_time_visited = 0;
 
     // Reset registers.
     for (int i = 0; i < 32; i++) {
@@ -879,9 +1001,13 @@ public class CPU {
     // Reset FP pipeline
     fpPipe.reset();
 
-    //Reset predictor
+    // Reset predictor
     predictor.reset();
     ConfigBranchPredictionMode();
+
+    // Reset caches
+    data_cache.reset();
+    inst_cache.reset();
 
     logger.info("CPU Resetted");
   }

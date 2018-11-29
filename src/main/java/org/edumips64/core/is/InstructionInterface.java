@@ -51,7 +51,7 @@ public interface InstructionInterface {
    * In this stage all Load and Store instructions access memory for getting or putting data
    * </pre>
    **/
-  void MEM() throws IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException;
+  void MEM() throws MEMReadMissException, IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException;
 
   /**
    * <pre>

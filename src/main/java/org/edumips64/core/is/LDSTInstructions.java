@@ -108,7 +108,7 @@ public abstract class LDSTInstructions extends Instruction {
 
   // Does the necessary operations (e.g., forwarding) before and after the
   // execution of doMEM();
-  public abstract void MEM() throws IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException;
+  public abstract void MEM() throws MEMReadMissException, IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException;
   public void WB() throws IrregularStringOfBitsException {}
 
   public void pack() throws IrregularStringOfBitsException {

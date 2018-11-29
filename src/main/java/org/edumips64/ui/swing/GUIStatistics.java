@@ -43,6 +43,7 @@ public class GUIStatistics extends GUIComponent {
   JScrollPane jsp;
   private int nCycles, nInstructions, rawStalls, codeSize, WAWStalls, dividerStalls, memoryStalls;
   private int flushing_stalls, untaken_stalls, taken_stalls, misprediction_stalls;
+  private int mem_readmiss_stalls, inst_readmiss_stalls, readmiss_stalls, writemiss_stalls;
   private float cpi;
 
   GUIStatistics(CPU cpu, Memory memory, ConfigStore config) {
@@ -61,6 +62,7 @@ public class GUIStatistics extends GUIComponent {
     String [] statistics = {" Execution", " 0 Cycles", " 0 Instructions", " ", " Stalls", " 0 RAW Stalls", " 0 WAW Stalls",
                             " 0 WAR Stalls", /*" 0 Structural Stalls(Divider not available)", " 0 Structural Stalls (Memory not available)",*/
                             " 0 Flushing Stalls", " 0 Branch Untaken Stalls", " 0 Branch Taken Stalls", " 0 Branch Misprediction Stalls",
+                            " 0 Read Miss Stalls", " 0 Instruction Read Miss Stalls", " 0 MEM Read Miss Stalls", " 0 Write Miss Stalls",
                             " Code Size", " 0 Bytes", "FPU info", "FCSR", "FCSRGroups", "FCSRMnemonics", "FCSRValues"
                            };
     StatPanel() {
@@ -96,6 +98,10 @@ public class GUIStatistics extends GUIComponent {
     untaken_stalls = cpu.getUntakenStalls();
     taken_stalls = cpu.getTakenStalls();
     misprediction_stalls = cpu.getMispredictionStalls();
+    mem_readmiss_stalls = cpu.getMEMReadMissStalls();
+    inst_readmiss_stalls = cpu.getINSTReadMissStalls();
+    readmiss_stalls = cpu.getReadMissStalls();
+    writemiss_stalls = cpu.getWriteMissStalls();
   }
 
   public void draw() {
@@ -188,28 +194,42 @@ public class GUIStatistics extends GUIComponent {
         label.setText(" " + misprediction_stalls + " " + CurrentLocale.getString("BMS"));
         return label;
       case 12:
+        label.setText(" " + readmiss_stalls + " " + CurrentLocale.getString("RMS"));
+        return label;
+      case 13:
+        label.setText(" " + inst_readmiss_stalls + " " + CurrentLocale.getString("IRMS"));
+        return label;
+      case 14:
+        label.setText(" " + mem_readmiss_stalls + " " + CurrentLocale.getString("MRMS"));
+        return label;
+      case 15:
+        label.setText(" " + writemiss_stalls + " " + CurrentLocale.getString("WMS"));
+        return label;
+
+      case 16:
         label.setText(" " + CurrentLocale.getString("CSIZE"));
         label.setForeground(Color.red);
         return label;
-      case 13:
+      case 17:
         label.setText(" " + codeSize + " " + CurrentLocale.getString("BYTES"));
         return label;
-      case 14:
+      case 18:
         label.setText(" " + CurrentLocale.getString("FPUINFO"));
         label.setForeground(Color.red);
         return label;
-      case 15:
+      case 19:
         label.setText(" " + CurrentLocale.getString("FPUFCSR"));
         return label;
-      case 16:
+      case 20:
         label.setText(" " + "    FCC       Cause EnablFlag RM");
         return label;
-      case 17:
+      case 21:
         label.setText(" " + "7654321 0      VZOUIVZOUIVZOUI");
         return label;
-      case 18:
+      case 22:
         label.setText(" " + cpu.getFCSR().getBinString());
         return label;
+
       }
 
       return label;

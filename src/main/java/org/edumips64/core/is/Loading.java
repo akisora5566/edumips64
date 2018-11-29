@@ -36,6 +36,8 @@ import org.edumips64.core.fpu.FPInvalidOperationException;
  */
 public abstract class Loading extends LDSTInstructions {
   protected static final Logger logger = Logger.getLogger(Loading.class.getName());
+  protected int time_visited = 0;
+  protected int mem_remaining_stalls = 0;
 
   Loading(Memory memory) {
     super(memory);
@@ -74,12 +76,39 @@ public abstract class Loading extends LDSTInstructions {
     }
   }
 
-  public void MEM() throws IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException {
+  public void MEM() throws IrregularStringOfBitsException, NotAlignException, MemoryElementNotFoundException, AddressErrorException, IrregularWriteOperationException,MEMReadMissException {
+    boolean memisdone = false;
     memEl = memory.getCellByAddress(address);
-    doMEM();
+    if (time_visited == 0) {
+      boolean dataincache = cpu.getDataCache().ReadAddress((int)address);
+      if (dataincache){
+        //finish MEM stage
+        doMEM();
+        if (cpu.isEnableForwarding()) {
+          doWB();
+        }
+        memisdone = true;
+      }
+      else{
+        time_visited++;
+        mem_remaining_stalls = 3;
+      }
+    }
 
-    if (cpu.isEnableForwarding()) {
-      doWB();
+    if (!memisdone) {
+      if (mem_remaining_stalls == 0) {
+        //fetch and replace cache
+        cpu.getDataCache().FetchDataFromMem((int) address);
+        // finish MEM stage
+        doMEM();
+        if (cpu.isEnableForwarding()) {
+          doWB();
+        }
+        time_visited = 0;
+      } else {
+        mem_remaining_stalls--;
+        throw new MEMReadMissException();
+      }
     }
   }
 

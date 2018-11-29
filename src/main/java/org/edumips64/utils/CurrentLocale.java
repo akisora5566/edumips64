@@ -146,6 +146,10 @@ public class CurrentLocale {
     en.put("BUTS", "Branch Untaken Stalls");
     en.put("BMS", "Branch Misprediction Stalls");
     en.put("FS", "Flushing Stalls");
+    en.put("RMS", "Read Miss Stalls");
+    en.put("MRMS", "MEM Read Miss Stalls");
+    en.put("IRMS", "Inst Read Miss Stalls");
+    en.put("WMS", "Write Miss Stalls");
     en.put("CSIZE", "Code size");
     en.put("Config.APPEARANCE", "Appearance");
     en.put("Config.BEHAVIOR", "Behavior");

@@ -6,12 +6,13 @@ java_library(
         "CPU.java",
     ],
     deps = [
+        ":BranchPredictor",
+        ":caches",
         ":exceptions",
         ":fcsr",
         ":memory",
         ":pipeline",
         ":registers",
-        ":BranchPredictor",
         "//src/main/java/org/edumips64/core/fpu:exceptions",
         "//src/main/java/org/edumips64/core/fpu:fppipeline",
         "//src/main/java/org/edumips64/core/fpu:registerfp",
@@ -141,6 +142,17 @@ java_library(
     srcs = [
         "BranchPredictor.java",
         "Prediction.java",
+    ],
+    deps = [
+        "//src/main/java/org/edumips64/core/is:exceptions",
+        "//src/main/java/org/edumips64/core/is:instructioninterface",
+    ],
+)
+
+java_library(
+    name = "caches",
+    srcs = [
+        "Cache.java",
     ],
     deps = [
         "//src/main/java/org/edumips64/core/is:exceptions",
